@@ -5,8 +5,8 @@ import lombok.Getter;
 
 @Getter
 @AllArgsConstructor
-public enum FieldCase {
-    NONE("", ""),
+public enum FieldValueCase {
+    NONE("", "%s"),
     UPPER(":upper", "UPPER(%s)"),
     LOWER(":lower", "LOWER(%s)"),
     ;

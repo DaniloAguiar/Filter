@@ -5,6 +5,7 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 @Data
@@ -42,7 +43,7 @@ public class FilterGroup {
     }
 
     public FilterGroup addFilters(Filter... filters) {
-        this.filters.addAll(List.of(filters));
+        this.filters.addAll(Arrays.asList(filters));
         return this;
     }
 
@@ -52,7 +53,7 @@ public class FilterGroup {
     }
 
     public FilterGroup addOrGroups(FilterGroup... groups) {
-        this.orGroups.addAll(List.of(groups));
+        this.orGroups.addAll(Arrays.asList(groups));
         return this;
     }
 }

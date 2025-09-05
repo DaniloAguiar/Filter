@@ -1,12 +1,13 @@
 package br.com.filter.domain.model;
 
-import br.com.filter.domain.enums.FieldCase;
+import br.com.filter.domain.enums.FieldValueCase;
 import br.com.filter.domain.enums.Operator;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 @Data
@@ -14,7 +15,7 @@ import java.util.List;
 public class Filter {
 
     private String field;
-    private FieldCase fieldCase;
+    private FieldValueCase fieldValueCase;
     private Operator operator;
     private List<Value> values;
 
@@ -23,80 +24,88 @@ public class Filter {
     // =========================
 
     public static Filter equals(String field, Value value) {
-        return equals(field, FieldCase.NONE, value);
+        return equals(field, FieldValueCase.NONE, value);
     }
 
-    public static Filter equals(String field, FieldCase fieldCase, Value value) {
-        return new Filter(field, fieldCase, Operator.EQ, List.of(value));
+    public static Filter equals(String field, FieldValueCase fieldValueCase, Value value) {
+        return new Filter(field, fieldValueCase, Operator.EQ, Collections.singletonList(value));
     }
+
 
     public static Filter notEquals(String field, Value value) {
-        return equals(field, FieldCase.NONE, value);
+        return equals(field, FieldValueCase.NONE, value);
     }
 
-    public static Filter notEquals(String field, FieldCase fieldCase, Value value) {
-        return new Filter(field, fieldCase, Operator.NOT_EQ, List.of(value));
+    public static Filter notEquals(String field, FieldValueCase fieldValueCase, Value value) {
+        return new Filter(field, fieldValueCase, Operator.NOT_EQ, Collections.singletonList(value));
     }
 
 
     public static Filter contains(String field, Value value) {
-        return contains(field, FieldCase.NONE, value);
+        return contains(field, FieldValueCase.NONE, value);
     }
 
-    public static Filter contains(String field, FieldCase fieldCase, Value value) {
-        return new Filter(field, fieldCase, Operator.LIKE, List.of(value));
+    public static Filter contains(String field, FieldValueCase fieldValueCase, Value value) {
+        return new Filter(field, fieldValueCase, Operator.LIKE, Collections.singletonList(value));
     }
+
 
     public static Filter startsWith(String field, Value value) {
-        return startsWith(field, FieldCase.NONE, value);
+        return startsWith(field, FieldValueCase.NONE, value);
     }
 
-    public static Filter startsWith(String field, FieldCase fieldCase, Value value) {
-        return new Filter(field, fieldCase, Operator.STARTS, List.of(value));
+    public static Filter startsWith(String field, FieldValueCase fieldValueCase, Value value) {
+        return new Filter(field, fieldValueCase, Operator.STARTS, Collections.singletonList(value));
     }
+
 
     public static Filter endsWith(String field, Value value) {
-        return endsWith(field, FieldCase.NONE, value);
+        return endsWith(field, FieldValueCase.NONE, value);
     }
 
-    public static Filter endsWith(String field, FieldCase fieldCase, Value value) {
-        return new Filter(field, fieldCase, Operator.ENDS, List.of(value));
+    public static Filter endsWith(String field, FieldValueCase fieldValueCase, Value value) {
+        return new Filter(field, fieldValueCase, Operator.ENDS, Collections.singletonList(value));
     }
+
 
     public static Filter greaterThan(String field, Value value) {
-        return new Filter(field, FieldCase.NONE, Operator.GT, List.of(value));
+        return new Filter(field, FieldValueCase.NONE, Operator.GT, Collections.singletonList(value));
     }
 
     public static Filter greaterThanOrEqual(String field, Value value) {
-        return new Filter(field, FieldCase.NONE, Operator.GE, List.of(value));
+        return new Filter(field, FieldValueCase.NONE, Operator.GE, Collections.singletonList(value));
     }
 
+
     public static Filter lessThan(String field, Value value) {
-        return new Filter(field, FieldCase.NONE, Operator.LT, List.of(value));
+        return new Filter(field, FieldValueCase.NONE, Operator.LT, Collections.singletonList(value));
     }
 
     public static Filter lessThanOrEqual(String field, Value value) {
-        return new Filter(field, FieldCase.NONE, Operator.LE, List.of(value));
+        return new Filter(field, FieldValueCase.NONE, Operator.LE, Collections.singletonList(value));
     }
+
 
     public static Filter between(String field, Value value1, Value value2) {
-        return new Filter(field, FieldCase.NONE, Operator.BTW, List.of(value1, value2));
+        return new Filter(field, FieldValueCase.NONE, Operator.BTW, Arrays.asList(value1, value2));
     }
 
+
     public static Filter in(String field, Value... values) {
-        return new Filter(field, FieldCase.NONE, Operator.IN, Arrays.asList(values));
+        return new Filter(field, FieldValueCase.NONE, Operator.IN, Arrays.asList(values));
     }
 
     public static Filter notIn(String field, Value... values) {
-        return new Filter(field, FieldCase.NONE, Operator.OUT, Arrays.asList(values));
+        return new Filter(field, FieldValueCase.NONE, Operator.OUT, Arrays.asList(values));
     }
 
+
     public static Filter isNull(String field) {
-        return new Filter(field, FieldCase.NONE, Operator.ISNULL, List.of());
+        return new Filter(field, FieldValueCase.NONE, Operator.ISNULL, Collections.emptyList());
     }
 
     public static Filter notNull(String field) {
-        return new Filter(field, FieldCase.NONE, Operator.NOTNULL, List.of());
+        return new Filter(field, FieldValueCase.NONE, Operator.NOTNULL, Collections.emptyList());
     }
 
 }
