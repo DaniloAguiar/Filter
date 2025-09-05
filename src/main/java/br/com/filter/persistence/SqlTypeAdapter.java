@@ -3,6 +3,7 @@ package br.com.filter.persistence;
 import br.com.filter.domain.enums.FieldValueCase;
 import br.com.filter.domain.enums.Operator;
 import br.com.filter.domain.model.Filter;
+import br.com.filter.domain.model.FunctionValue;
 import br.com.filter.domain.model.Value;
 import lombok.experimental.UtilityClass;
 
@@ -22,6 +23,9 @@ public class SqlTypeAdapter {
      * incluindo cast no SQL (PostgreSQL style)
      */
     public String buildPlaceholder(Value value) {
+        if (value instanceof FunctionValue)
+            return ((FunctionValue) value).getFunction().getSql(); // insere a função segura
+
         Object v = value.getValue();
         if (v instanceof UUID) return "?::UUID";
         if (v instanceof LocalDate) return "?::DATE";
