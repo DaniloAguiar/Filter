@@ -9,7 +9,7 @@ import java.util.Arrays;
 import java.util.List;
 
 @Data
-@AllArgsConstructor(access = AccessLevel.PRIVATE)
+@AllArgsConstructor(access = AccessLevel.PROTECTED)
 public class FilterGroup {
 
     private final List<Filter> filters = new ArrayList<>();

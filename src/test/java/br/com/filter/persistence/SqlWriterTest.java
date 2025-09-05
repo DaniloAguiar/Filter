@@ -363,6 +363,116 @@ class SqlWriterTest {
         assertEquals(expectedParams, sqlResult.getParameters());
     }
 
+    @Test
+    public void testWhereClauseWithMultipleAndConditions() {
+        // Valores para os filtros
+        Integer idEmpresa = 1;
+
+        // Cria os filtros
+        Filter filterIdEmpresa = Filter.equals("lv.id_empresa", Value.of(idEmpresa));
+        Filter filterCatalogoGratuito = Filter.equals("licped.catalogo_gratuito", Value.of(Boolean.FALSE));
+
+        Filter filterCategoriaApp = Filter.notEquals("licped.categoria_licenca", Value.of("app"));
+        Filter filterCategoriaEcommerce = Filter.notEquals("licped.categoria_licenca", Value.of("ecommerce"));
+        Filter filterCategoriaErp = Filter.notEquals("licped.categoria_licenca", Value.of("erp"));
+
+        Filter filterDeletedAt = Filter.isNull("lv.deleted_at");
+
+        // Cria o grupo de filtros
+        FilterGroup group = FilterGroup.of(
+                filterIdEmpresa,
+                filterCatalogoGratuito,
+                filterCategoriaApp,
+                filterCategoriaEcommerce,
+                filterCategoriaErp,
+                filterDeletedAt
+        );
+
+        // Gera o SQL e os parâmetros
+        SqlResult sqlResult = SqlWriter.toSql(group);
+
+        // SQL esperado
+        String expectedSql =
+                "( lv.id_empresa = ? " +
+                        " AND  licped.catalogo_gratuito = ?::BOOLEAN " +
+                        " AND  licped.categoria_licenca <> ? " +
+                        " AND  licped.categoria_licenca <> ? " +
+                        " AND  licped.categoria_licenca <> ? " +
+                        " AND  lv.deleted_at IS NULL )";
+
+        // Verifica o SQL gerado
+        assertEquals(expectedSql, sqlResult.getSql());
+
+        // Verifica os parâmetros passados
+        List<Object> expectedParams = Arrays.asList(
+                idEmpresa,
+                Boolean.FALSE,
+                "app",
+                "ecommerce",
+                "erp"
+        );
+        assertEquals(expectedParams, sqlResult.getParameters());
+    }
+
+
+    @Test
+    public void testComplexWhereClauseWithDateTrunc() {
+        // Valores para os filtros
+        Integer idEmpresa = 1;
+        boolean incluirLicencasApp = false; // Controla a inclusão do filtro de 'app'
+        String subCategoriaLicenca = "b2b";
+
+        // Cria os filtros
+        Filter filterIdEmpresa = Filter.equals("lv.id_empresa", Value.of(idEmpresa));
+        Filter filterCategoriaErp = Filter.notEquals("licped.categoria_licenca", Value.of("erp"));
+        Filter filterCategoriaEcommerce = Filter.notEquals("licped.categoria_licenca", Value.of("ecommerce"));
+        Filter filterLicencasApp = incluirLicencasApp
+                ? null // Não adiciona o filtro se incluirLicencasApp for true
+                : Filter.notEquals("licped.categoria_licenca", Value.of("app"));
+
+        Filter filterDateTrunc = Filter.greaterThanOrEqual(
+                "DATE_TRUNC('day', lv.fim)",
+                Value.raw("DATE_TRUNC('day', now())") // Usa `raw` para expressões diretas (como `now()`)
+        );
+
+        // Subconsulta para o filtro complexo (IN/NOT IN)
+        String subQuery = "(SELECT id_licenca FROM fnc_sel_vendedor(?, false) ven WHERE ven.id_licenca = lv.id)";
+        Filter filterSubCategoriaLicencaOrNotIn = Filter.or(
+                Filter.equals("sub_categoria_licenca", Value.of(subCategoriaLicenca)),
+                Filter.notIn("lv.id", Value.raw(subQuery))
+        );
+
+        // Cria o grupo principal de filtros
+        FilterGroup group = FilterGroup.of(filterIdEmpresa, filterCategoriaErp, filterCategoriaEcommerce, filterDateTrunc);
+        if (filterLicencasApp != null) {
+            group.addFilter(filterLicencasApp);
+        }
+        group.addFilter(filterSubCategoriaLicencaOrNotIn);
+
+        // Gera o SQL e os parâmetros
+        SqlResult sqlResult = SqlWriter.toSql(group);
+
+        // SQL esperado
+        String expectedSql =
+                "( lv.id_empresa = ? " +
+                        "AND licped.categoria_licenca <> ? " +
+                        "AND licped.categoria_licenca <> ? " +
+                        (incluirLicencasApp ? "" : "AND licped.categoria_licenca <> ? ") +
+                        "AND DATE_TRUNC('day', lv.fim) >= DATE_TRUNC('day', now()) " +
+                        "AND ( sub_categoria_licenca = ? " +
+                        "OR lv.id NOT IN (SELECT id_licenca FROM fnc_sel_vendedor(?, false) ven WHERE ven.id_licenca = lv.id) ) )";
+
+        // Verifica o SQL gerado
+        assertEquals(expectedSql, sqlResult.getSql());
+
+        // Verifica os parâmetros esperados
+        List<Object> expectedParams = incluirLicencasApp
+                ? Arrays.asList(idEmpresa, "erp", "ecommerce", subCategoriaLicenca, idEmpresa)
+                : Arrays.asList(idEmpresa, "erp", "ecommerce", "app", subCategoriaLicenca, idEmpresa);
+
+        assertEquals(expectedParams, sqlResult.getParameters());
+    }
+
 //    DaoEmailEventoAPI
 
 }

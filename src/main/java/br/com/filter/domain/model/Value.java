@@ -7,14 +7,14 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 
 @Data
-@AllArgsConstructor(access = AccessLevel.PRIVATE)
+@AllArgsConstructor(access = AccessLevel.PROTECTED)
 public class Value {
 
     private final Class<?> type;
 
     private final Object value;
 
-    private Value() {
+    protected Value() {
         this.type = null;
         this.value = null;
     }
@@ -33,6 +33,10 @@ public class Value {
 
     public static Value now() {
         return FunctionValue.of(Function.NOW);
+    }
+
+    public static Value age() {
+        return FunctionValue.of(Function.AGE);
     }
 
 }

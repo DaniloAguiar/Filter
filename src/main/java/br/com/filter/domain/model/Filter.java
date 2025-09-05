@@ -11,7 +11,7 @@ import java.util.Collections;
 import java.util.List;
 
 @Data
-@AllArgsConstructor(access = AccessLevel.PRIVATE)
+@AllArgsConstructor(access = AccessLevel.PROTECTED)
 public class Filter {
 
     private String field;
@@ -33,7 +33,7 @@ public class Filter {
 
 
     public static Filter notEquals(String field, Value value) {
-        return equals(field, FieldValueCase.NONE, value);
+        return notEquals(field, FieldValueCase.NONE, value);
     }
 
     public static Filter notEquals(String field, FieldValueCase fieldValueCase, Value value) {
