@@ -1,4 +1,4 @@
-package br.com.filter.persistence;
+package br.com.filter.persistence.domain.moodel;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;

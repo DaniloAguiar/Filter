@@ -2,17 +2,14 @@ package br.com.filter.persistence;
 
 import br.com.filter.domain.enums.FieldValueCase;
 import br.com.filter.domain.enums.Operator;
+import br.com.filter.domain.enums.SqlType;
 import br.com.filter.domain.model.Filter;
-import br.com.filter.domain.model.FunctionValue;
+import br.com.filter.domain.model.ValueFunction;
 import br.com.filter.domain.model.Value;
 import lombok.experimental.UtilityClass;
 
-import java.time.Instant;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.time.LocalTime;
+import java.text.MessageFormat;
 import java.util.List;
-import java.util.UUID;
 import java.util.stream.Collectors;
 
 @UtilityClass
@@ -23,30 +20,23 @@ public class SqlTypeAdapter {
      * incluindo cast no SQL (PostgreSQL style)
      */
     public String buildPlaceholder(Value value) {
-        if (value instanceof FunctionValue)
-            return ((FunctionValue) value).getFunction().getSql(); // insere a função segura
-
-        Object v = value.getValue();
-        if (v instanceof UUID) return "?::UUID";
-        if (v instanceof LocalDate) return "?::DATE";
-        if (v instanceof LocalDateTime || v instanceof Instant) return "?::TOMESTAMP";
-        if (v instanceof LocalTime) return "?::TIME";
-        if (v instanceof Boolean) return "?::BOOLEAN";
-        return "?";
+        if (value instanceof ValueFunction)
+            return ((ValueFunction) value).getFunction().getSql(); // insere a função segura
+        return SqlType.placeholder(value.getType());
     }
 
     /**
      * Aplica placeholder + tipo + case
      */
     public String buildPlaceholderCase(Value value, FieldValueCase fieldCase) {
-        return applyCase(applyTypeCast(buildPlaceholder(value), value.getValue()), fieldCase);
+        return applyCase(applyTypeCast(buildPlaceholder(value), value), fieldCase);
     }
 
     /**
      * Aplica field + tipo + case
      */
     public String buildField(Filter filter) {
-        String typed = applyTypeCast(filter.getField(), filter.getValues().isEmpty() ? null : filter.getValues().get(0).getValue());
+        String typed = applyTypeCast(filter.getField(), filter.getValues().isEmpty() ? null : filter.getValues().get(0));
         return applyCase(typed, filter.getFieldValueCase());
     }
 
@@ -59,7 +49,7 @@ public class SqlTypeAdapter {
         switch (op) {
             case ISNULL:
             case NOTNULL:
-                return String.format(op.getSql(), buildField(filter));
+                return MessageFormat.format(op.getSql(), buildField(filter));
 
             case BTW: {
                 Value v1 = filter.getValues().get(0);
@@ -69,7 +59,7 @@ public class SqlTypeAdapter {
                 String placeholder1 = buildPlaceholderCase(v1, filter.getFieldValueCase());
                 String placeholder2 = buildPlaceholderCase(v2, filter.getFieldValueCase());
 
-                return String.format(op.getSql(), fieldExpr, placeholder1, placeholder2);
+                return MessageFormat.format(op.getSql(), fieldExpr, placeholder1, placeholder2);
             }
 
             case IN:
@@ -78,12 +68,12 @@ public class SqlTypeAdapter {
                         .map(v -> buildPlaceholderCase(v, filter.getFieldValueCase()))
                         .collect(Collectors.toList());
 
-                return String.format(op.getSql(), buildField(filter), String.join(", ", placeholders));
+                return MessageFormat.format(op.getSql(), buildField(filter), String.join(", ", placeholders));
             }
 
             default: {
                 Value v = filter.getValues().get(0);
-                return String.format(op.getSql(), buildField(filter), buildPlaceholderCase(v, filter.getFieldValueCase()));
+                return MessageFormat.format(op.getSql(), buildField(filter), buildPlaceholderCase(v, filter.getFieldValueCase()));
             }
         }
     }
@@ -92,18 +82,16 @@ public class SqlTypeAdapter {
      * Aplica o truncamento/cast adequado para o tipo do valor
      * Usado tanto para campo quanto para placeholder
      */
-    public String applyTypeCast(String expr, Object value) {
-        if (value instanceof LocalDate) return "DATE_TRUNC('day', " + expr + ")";
-        if (value instanceof LocalDateTime || value instanceof Instant) return "DATE_TRUNC('hour', " + expr + ")";
-        if (value instanceof LocalTime) return "CAST(" + expr + " AS time)";
-        return expr;
+    public String applyTypeCast(String expr, Value value) {
+        if (value == null) return expr;
+        return SqlType.castType(value.getType(), expr);
     }
 
     /**
      * Combina FieldCase (UPPER/LOWER) com expressão SQL
      */
     public String applyCase(String expr, FieldValueCase fieldCase) {
-        return String.format(fieldCase.getSql(), expr);
+        return MessageFormat.format(fieldCase.getSql(), expr);
     }
 
     /**
@@ -119,15 +107,20 @@ public class SqlTypeAdapter {
                 // Sem parâmetro
                 break;
             case BTW:
-                parameters.add(filter.getValues().get(0).getValue());
-                parameters.add(filter.getValues().get(1).getValue());
+                if (!(filter.getValues().get(0) instanceof ValueFunction))
+                    parameters.add(filter.getValues().get(0).getValue());
+                if (!(filter.getValues().get(1) instanceof ValueFunction))
+                    parameters.add(filter.getValues().get(1).getValue());
                 break;
             case IN:
             case OUT:
-                filter.getValues().forEach(v -> parameters.add(v.getValue()));
+                filter.getValues().forEach(v -> {
+                    if (!(v instanceof ValueFunction)) parameters.add(v.getValue());
+                });
                 break;
             default:
-                parameters.add(filter.getValues().get(0).getValue());
+                if (!(filter.getValues().get(0) instanceof ValueFunction))
+                    parameters.add(filter.getValues().get(0).getValue());
                 break;
         }
 

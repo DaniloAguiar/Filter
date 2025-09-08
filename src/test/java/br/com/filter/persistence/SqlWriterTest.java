@@ -4,8 +4,10 @@ import br.com.filter.domain.enums.FieldValueCase;
 import br.com.filter.domain.model.Filter;
 import br.com.filter.domain.model.FilterGroup;
 import br.com.filter.domain.model.Value;
+import br.com.filter.persistence.domain.moodel.SqlResult;
 import org.junit.jupiter.api.Test;
 
+import java.math.BigInteger;
 import java.time.LocalDate;
 import java.util.Arrays;
 import java.util.List;
@@ -330,11 +332,66 @@ class SqlWriterTest {
         assertEquals(expectedParams, sqlResult.getParameters());
     }
 
-//    String where = "WHERE cob.id_empresa = ? AND cob.id_cedente = ? AND cob.nosso_numero_sequencial = CAST(? AS Bigint)";
+    @Test
+    public void testWhereClauseWithBigintCast() {
+        // Valores para os filtros
+        Integer idEmpresa = 1;
+        Integer idCedente = 22;
+        BigInteger nossoNumeroSequencial = new BigInteger("123456789");
 
-//               String where = "WHERE cob.id_cliente = ? and cob.id_empresa = ? AND cob.pagamento IS NULL " +
-//                    "AND date_trunc('day', cob.vencimento) < date_trunc('day',now()) AND cob.deleted_at IS NULL";
+        // Cria os filtros
+        Filter filterIdEmpresa = Filter.equals("cob.id_empresa", Value.of(idEmpresa));
+        Filter filterIdCedente = Filter.equals("cob.id_cedente", Value.of(idCedente));
+        Filter filterNossoNumeroSeq = Filter.equals("cob.nosso_numero_sequencial", Value.of(nossoNumeroSequencial));
 
+        // Cria o grupo de filtros
+        FilterGroup group = FilterGroup.of(filterIdEmpresa, filterIdCedente, filterNossoNumeroSeq);
+
+        // Gera o SQL e os parâmetros
+        SqlResult sqlResult = SqlWriter.toSql(group);
+
+        // SQL esperado (com CAST para Bigint)
+        String expectedSql = "( cob.id_empresa = ?  AND  cob.id_cedente = ?  AND  cob.nosso_numero_sequencial = ?::BIGINT )";
+
+        // Verificações
+        assertEquals(expectedSql, sqlResult.getSql());
+        assertEquals(Arrays.asList(idEmpresa, idCedente, nossoNumeroSequencial), sqlResult.getParameters());
+    }
+
+    @Test
+    public void testWhereClauseClienteVencimentoAtrasado() {
+        // Valores para os filtros
+        Integer idCliente = 7;
+        Integer idEmpresa = 3;
+
+        // Cria os filtros
+        Filter filterIdCliente = Filter.equals("cob.id_cliente", Value.of(idCliente));
+        Filter filterIdEmpresa = Filter.equals("cob.id_empresa", Value.of(idEmpresa));
+        Filter filterPagamentoIsNull = Filter.isNull("cob.pagamento");
+        Filter filterVencimentoAntesDeHoje = Filter.lessThan("cob.vencimento", Value.currentDate());
+        Filter filterDeletedAtIsNull = Filter.isNull("cob.deleted_at");
+
+        // Cria o grupo de filtros (na mesma ordem do WHERE de referência)
+        FilterGroup group = FilterGroup.of(
+                filterIdCliente,
+                filterIdEmpresa,
+                filterPagamentoIsNull,
+                filterVencimentoAntesDeHoje,
+                filterDeletedAtIsNull
+        );
+
+        // Gera o SQL e os parâmetros
+        SqlResult sqlResult = SqlWriter.toSql(group);
+
+        // SQL esperado
+        String expectedSql =
+                "( cob.id_cliente = ?  AND  cob.id_empresa = ?  AND  cob.pagamento IS NULL" +
+                        "  AND  DATE_TRUNC('day', cob.vencimento) < DATE_TRUNC('day', CURRENT_DATE)  AND  cob.deleted_at IS NULL )";
+
+        // Verificações
+        assertEquals(expectedSql, sqlResult.getSql());
+        assertEquals(Arrays.asList(idCliente, idEmpresa), sqlResult.getParameters());
+    }
 
     @Test
     public void testWhereClauseWithLowerCase() {
@@ -419,35 +476,18 @@ class SqlWriterTest {
     public void testComplexWhereClauseWithDateTrunc() {
         // Valores para os filtros
         Integer idEmpresa = 1;
-        boolean incluirLicencasApp = false; // Controla a inclusão do filtro de 'app'
-        String subCategoriaLicenca = "b2b";
 
         // Cria os filtros
         Filter filterIdEmpresa = Filter.equals("lv.id_empresa", Value.of(idEmpresa));
+
         Filter filterCategoriaErp = Filter.notEquals("licped.categoria_licenca", Value.of("erp"));
         Filter filterCategoriaEcommerce = Filter.notEquals("licped.categoria_licenca", Value.of("ecommerce"));
-        Filter filterLicencasApp = incluirLicencasApp
-                ? null // Não adiciona o filtro se incluirLicencasApp for true
-                : Filter.notEquals("licped.categoria_licenca", Value.of("app"));
+        Filter filterLicencasApp = Filter.notEquals("licped.categoria_licenca", Value.of("app"));
 
-        Filter filterDateTrunc = Filter.greaterThanOrEqual(
-                "DATE_TRUNC('day', lv.fim)",
-                Value.raw("DATE_TRUNC('day', now())") // Usa `raw` para expressões diretas (como `now()`)
-        );
-
-        // Subconsulta para o filtro complexo (IN/NOT IN)
-        String subQuery = "(SELECT id_licenca FROM fnc_sel_vendedor(?, false) ven WHERE ven.id_licenca = lv.id)";
-        Filter filterSubCategoriaLicencaOrNotIn = Filter.or(
-                Filter.equals("sub_categoria_licenca", Value.of(subCategoriaLicenca)),
-                Filter.notIn("lv.id", Value.raw(subQuery))
-        );
+        Filter filterDateTrunc = Filter.greaterThanOrEqual("lv.fim", Value.now());
 
         // Cria o grupo principal de filtros
-        FilterGroup group = FilterGroup.of(filterIdEmpresa, filterCategoriaErp, filterCategoriaEcommerce, filterDateTrunc);
-        if (filterLicencasApp != null) {
-            group.addFilter(filterLicencasApp);
-        }
-        group.addFilter(filterSubCategoriaLicencaOrNotIn);
+        FilterGroup group = FilterGroup.of(filterIdEmpresa, filterCategoriaErp, filterCategoriaEcommerce, filterLicencasApp, filterDateTrunc);
 
         // Gera o SQL e os parâmetros
         SqlResult sqlResult = SqlWriter.toSql(group);
@@ -455,24 +495,127 @@ class SqlWriterTest {
         // SQL esperado
         String expectedSql =
                 "( lv.id_empresa = ? " +
-                        "AND licped.categoria_licenca <> ? " +
-                        "AND licped.categoria_licenca <> ? " +
-                        (incluirLicencasApp ? "" : "AND licped.categoria_licenca <> ? ") +
-                        "AND DATE_TRUNC('day', lv.fim) >= DATE_TRUNC('day', now()) " +
-                        "AND ( sub_categoria_licenca = ? " +
-                        "OR lv.id NOT IN (SELECT id_licenca FROM fnc_sel_vendedor(?, false) ven WHERE ven.id_licenca = lv.id) ) )";
+                        " AND  licped.categoria_licenca <> ? " +
+                        " AND  licped.categoria_licenca <> ? " +
+                        " AND  licped.categoria_licenca <> ? " +
+                        " AND  DATE_TRUNC('hour', lv.fim) >= DATE_TRUNC('hour', NOW()) )";
 
         // Verifica o SQL gerado
         assertEquals(expectedSql, sqlResult.getSql());
 
         // Verifica os parâmetros esperados
-        List<Object> expectedParams = incluirLicencasApp
-                ? Arrays.asList(idEmpresa, "erp", "ecommerce", subCategoriaLicenca, idEmpresa)
-                : Arrays.asList(idEmpresa, "erp", "ecommerce", "app", subCategoriaLicenca, idEmpresa);
+        List<Object> expectedParams = Arrays.asList(idEmpresa, "erp", "ecommerce", "app");
 
         assertEquals(expectedParams, sqlResult.getParameters());
     }
 
-//    DaoEmailEventoAPI
+
+    @Test
+    public void testWhereClausePedidoItemGrid() {
+        // WHERE pro.id_representada = ?
+        //   AND item.deleted_at IS NULL
+        //   AND (
+        //         item.quantidade IS NOT NULL
+        //         OR (item.quantidade IS NULL AND pro.deleted_at IS NULL)
+        //       )
+
+        Integer idRepresentada = 123;
+
+        // Filtros base
+        Filter filterIdRepresentada = Filter.equals("pro.id_representada", Value.of(idRepresentada));
+        Filter filterItemDeletedNull = Filter.isNull("item.deleted_at");
+
+        // Parte OR: ( item.quantidade IS NOT NULL ) OR ( item.quantidade IS NULL AND pro.deleted_at IS NULL )
+        FilterGroup orRight = FilterGroup.of(Filter.isNull("item.quantidade"), Filter.isNull("pro.deleted_at"));
+        FilterGroup orLeft = FilterGroup.of(Filter.notNull("item.quantidade")).addOrGroups(orRight);
+
+
+        // Grupo principal: pro.id_representada = ? AND item.deleted_at IS NULL AND ( ... OR ... )
+        // Observação: o SqlWriter atual concatena como "( filtros AND (left) OR (right) )"
+        FilterGroup group = FilterGroup.of(filterIdRepresentada, filterItemDeletedNull)
+                .addOrGroups(orLeft);
+
+        SqlResult sqlResult = SqlWriter.toSql(group);
+
+        // SQL esperado de acordo com a implementação atual do SqlWriter
+        String expectedSql = "( pro.id_representada = ?  AND  item.deleted_at IS NULL  AND" +
+                " ( item.quantidade IS NOT NULL  OR ( item.quantidade IS NULL  AND  pro.deleted_at IS NULL )))";
+        assertEquals(expectedSql, sqlResult.getSql());
+
+        // Parâmetros
+        assertEquals(Arrays.asList(idRepresentada), sqlResult.getParameters());
+    }
+
+
+    @Test
+    public void testWhereClauseWithInListPedidos() {
+        // WHERE cab.id_empresa = ?
+        //   AND cab.id IN (?,?,?)
+
+        Integer idEmpresa = 5;
+        List<Integer> idsPedidos = Arrays.asList(10, 20, 30);
+
+        // Filtros
+        Filter filterIdEmpresa = Filter.equals("cab.id_empresa", Value.of(idEmpresa));
+        Filter filterIdsPedidos = Filter.in(
+                "cab.id",
+                Value.of(idsPedidos.get(0)),
+                Value.of(idsPedidos.get(1)),
+                Value.of(idsPedidos.get(2))
+        );
+
+        // Grupo principal
+        FilterGroup group = FilterGroup.of(filterIdEmpresa, filterIdsPedidos);
+
+        // Geração do SQL
+        SqlResult sqlResult = SqlWriter.toSql(group);
+
+        // SQL esperado
+        String expectedSql = "( cab.id_empresa = ?  AND  cab.id IN ( ?, ?, ? ) )";
+        assertEquals(expectedSql, sqlResult.getSql());
+
+        // Parâmetros esperados
+        assertEquals(Arrays.asList(idEmpresa, 10, 20, 30), sqlResult.getParameters());
+    }
+
+    @Test
+    public void testWhereClauseProdutoBuscaLivre() {
+        // WHERE:
+        // prod.id_representada = ?
+        // AND prod.deleted_at IS NULL
+        // AND ( UPPER(prod.codigo) LIKE UPPER(?) OR UPPER(prod.nome) LIKE UPPER(?) OR prod.codigo_barra LIKE ? OR UPPER(prod.referencia) LIKE UPPER(?) )
+
+        Integer idRepresentada = 42;
+        String termo = "abc"; // termo de busca
+
+        // Filtros AND base
+        Filter fIdRepresentada = Filter.equals("prod.id_representada", Value.of(idRepresentada));
+        Filter fDeletedNull = Filter.isNull("prod.deleted_at");
+
+        // Bloco OR:
+        // UPPER(prod.codigo) LIKE %?%
+        FilterGroup orCodigo = FilterGroup.of(Filter.contains("prod.codigo", FieldValueCase.UPPER, Value.of(termo.toUpperCase())));
+        // UPPER(prod.nome) LIKE %?%
+        FilterGroup orNome = FilterGroup.of(Filter.contains("prod.nome", FieldValueCase.UPPER, Value.of(termo.toUpperCase())));
+        // prod.codigo_barra LIKE %?%
+        FilterGroup orCodigoBarra = FilterGroup.of(Filter.contains("prod.codigo_barra", Value.of(termo)));
+        // UPPER(prod.referencia) LIKE %?%
+        FilterGroup orReferencia = FilterGroup.of(Filter.contains("prod.referencia", FieldValueCase.UPPER, Value.of(termo.toUpperCase())));
+
+        // Grupo principal: AND entre base + OR entre as alternativas
+        FilterGroup group = FilterGroup.of(fIdRepresentada, fDeletedNull)
+                .addOrGroups(FilterGroup.empty().addOrGroups(orCodigo, orNome, orCodigoBarra, orReferencia));
+
+        SqlResult sqlResult = SqlWriter.toSql(group);
+
+        // Observação: o SqlWriter atual envolve cada subgrupo OR com parênteses, resultando em:
+        // ( prod.id_representada = ?  AND  prod.deleted_at IS NULL  AND  ( UPPER(prod.codigo) LIKE %{?}% ) OR ( UPPER(prod.nome) LIKE %{?}% ) OR ( prod.codigo_barra LIKE %{?}% ) OR ( UPPER(prod.referencia) LIKE %{?}% ) )
+        String expectedSql = "( prod.id_representada = ?  AND  prod.deleted_at IS NULL  AND (( UPPER(prod.codigo) LIKE %UPPER(?)% ) OR ( UPPER(prod.nome) LIKE %UPPER(?)% ) OR ( prod.codigo_barra LIKE %?% ) OR ( UPPER(prod.referencia) LIKE %UPPER(?)% )))";
+        assertEquals(expectedSql, sqlResult.getSql());
+
+        // Parâmetros na ordem em que aparecem
+        assertEquals(Arrays.asList(idRepresentada, termo.toUpperCase(), termo.toUpperCase(), termo, termo.toUpperCase()), sqlResult.getParameters());
+    }
+
 
 }

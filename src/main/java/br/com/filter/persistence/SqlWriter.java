@@ -2,6 +2,7 @@ package br.com.filter.persistence;
 
 import br.com.filter.domain.model.FilterGroup;
 import br.com.filter.domain.enums.LogicalOperator;
+import br.com.filter.persistence.domain.moodel.SqlResult;
 import lombok.experimental.UtilityClass;
 
 import java.util.ArrayList;

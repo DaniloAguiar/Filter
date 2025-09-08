@@ -11,7 +11,9 @@ import lombok.EqualsAndHashCode;
 @Data
 @AllArgsConstructor(access = AccessLevel.PROTECTED)
 @EqualsAndHashCode(callSuper = true)
-public class FunctionValue extends Value {
+public class ValueFunction extends Value {
+
+    private final Class<?> type;
 
     private final Function function;
 
@@ -19,8 +21,8 @@ public class FunctionValue extends Value {
     // Métodos de fábrica
     // =========================
 
-    public static FunctionValue of(Function function) {
-        return new FunctionValue(function);
+    public static ValueFunction of(Class<?> type, Function function) {
+        return new ValueFunction(type, function);
     }
 
 }

@@ -8,7 +8,9 @@ import lombok.Getter;
 public enum Function {
     CURRENT_DATE("CURRENT_DATE"),
     NOW("NOW()"),
-    AGE("AGE(NOW())");
+    AGE("AGE(NOW())"),
+    GEN_RANDOM_UUID("gen_random_uuid()"),
+    ;
 
     private final String sql;
 
