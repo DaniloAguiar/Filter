@@ -110,7 +110,6 @@ class SqlWriterTest {
 
         // Cria grupo de filtros
         FilterGroup group = FilterGroup.of(filterIdEmpresa, filterMyUuid);
-        // Não adiciona deleted_at porque aIncluirDeletado = true
 
         // Gera SQL
         SqlResult sqlResult = SqlWriter.toSql(group);
