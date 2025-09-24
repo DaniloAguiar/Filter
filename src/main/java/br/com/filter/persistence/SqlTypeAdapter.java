@@ -36,7 +36,7 @@ public class SqlTypeAdapter {
      * Aplica field + tipo + case
      */
     public String buildField(Filter filter) {
-        String typed = applyTypeCast(filter.getField(), filter.getValues().isEmpty() ? null : filter.getValues().get(0));
+        String typed = applyTypeCast(filter.getField().getValue(), filter.getValues().isEmpty() ? null : filter.getValues().get(0));
         return applyCase(typed, filter.getFieldValueCase());
     }
 
